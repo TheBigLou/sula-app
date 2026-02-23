@@ -1,0 +1,213 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ─── Household ───────────────────────────────────────────────
+
+model Household {
+  id        String            @id @default(cuid())
+  name      String
+  createdAt DateTime          @default(now())
+  members   HouseholdMember[]
+}
+
+model HouseholdMember {
+  id          String    @id @default(cuid())
+  householdId String
+  name        String
+  role        String    // "owner" | "partner"
+  createdAt   DateTime  @default(now())
+
+  household    Household     @relation(fields: [householdId], references: [id])
+  plaidItems   PlaidItem[]
+  accounts     Account[]
+  transactions Transaction[]
+  cardInstances CardInstance[]
+  spendingSummaries SpendingSummary[]
+}
+
+// ─── Plaid ───────────────────────────────────────────────────
+
+model PlaidItem {
+  id                String   @id @default(cuid())
+  householdMemberId String
+  accessToken       String   // encrypted at rest
+  itemId            String   @unique
+  institutionId     String?
+  institutionName   String?
+  status            String   @default("active") // "active" | "needs_reauth" | "revoked"
+  syncCursor        String?  // for transactions/sync incremental sync
+  lastSynced        DateTime?
+  createdAt         DateTime @default(now())
+
+  member   HouseholdMember @relation(fields: [householdMemberId], references: [id])
+  accounts Account[]
+}
+
+model Account {
+  id               String  @id @default(cuid())
+  plaidItemId      String
+  householdMemberId String
+  plaidAccountId   String  @unique
+  name             String
+  officialName     String?
+  type             String  // "checking" | "savings" | "credit" | "investment" | "other"
+  subtype          String?
+  mask             String? // last 4 digits
+  currentBalance   Float?
+  availableBalance Float?
+  cardInstanceId   String? // links credit card accounts to a CardInstance
+
+  plaidItem    PlaidItem       @relation(fields: [plaidItemId], references: [id])
+  member       HouseholdMember @relation(fields: [householdMemberId], references: [id])
+  cardInstance CardInstance?    @relation(fields: [cardInstanceId], references: [id])
+  transactions Transaction[]
+}
+
+model Transaction {
+  id                  String   @id @default(cuid())
+  accountId           String
+  householdMemberId   String
+  plaidTransactionId  String   @unique
+  date                DateTime
+  amount              Float    // positive = money out (debit), negative = money in (credit)
+  isoCurrencyCode     String?  @default("USD")
+  originalName        String   // raw from Plaid
+  cleanMerchantName   String?  // from LLM categorization
+  merchantLogo        String?
+  plaidCategory       String?  // Plaid's categorization (JSON)
+  plaidCategoryId     String?
+  category            String?  // our standardized category
+  subcategory         String?
+  categoryConfidence  Float?   // 0-1
+  categorySource      String?  // "plaid" | "llm" | "user"
+  pending             Boolean  @default(false)
+  excludeFromTotals   Boolean  @default(false)
+  createdAt           DateTime @default(now())
+
+  account      Account         @relation(fields: [accountId], references: [id])
+  member       HouseholdMember @relation(fields: [householdMemberId], references: [id])
+  creditUsages CreditUsage[]
+}
+
+// ─── Card Products (reference data) ─────────────────────────
+
+model CardProduct {
+  id           String  @id @default(cuid())
+  name         String
+  issuer       String  // "amex" | "chase" | "citi" | "apple"
+  annualFee    Float
+  feeResetType String  @default("calendar") // "calendar" | "anniversary"
+  productUrl   String?
+
+  benefits  CardBenefit[]
+  instances CardInstance[]
+}
+
+model CardBenefit {
+  id                 String   @id @default(cuid())
+  cardProductId      String
+  name               String
+  description        String?
+  annualValue        Float    // total annual value in dollars
+  periodValue        Float    // amount per reset period
+  resetPeriod        String   // "monthly" | "quarterly" | "semi-annual" | "annual" | "multi-year"
+  resetType          String   @default("calendar") // "calendar" | "cardmember-anniversary" | "custom-dates"
+  trackingMode       String   // "auto-detect" | "reminder"
+  requiresEnrollment Boolean  @default(false)
+  enrollmentUrl      String?
+  expiresAt          DateTime? // for time-limited benefits
+  active             Boolean  @default(true)
+  notes              String?  // human-readable notes
+  notApplicable      Boolean  @default(false) // e.g., Equinox credit — household doesn't use it
+
+  cardProduct    CardProduct          @relation(fields: [cardProductId], references: [id])
+  detectionRules BenefitDetectionRule[]
+  creditUsages   CreditUsage[]
+}
+
+model BenefitDetectionRule {
+  id                           String  @id @default(cuid())
+  cardBenefitId                String
+  ruleType                     String  // "merchant-name" | "merchant-category" | "amount-match" | "custom"
+  merchantNames                String? // JSON array — e.g., '["Saks Fifth Avenue", "SAKS", "saks.com"]'
+  merchantCategories           String? // JSON array — e.g., '["dining", "restaurants"]'
+  amountMin                    Float?
+  amountMax                    Float?
+  transactionDescriptionPatterns String? // JSON array of regex patterns
+  notes                        String?
+
+  cardBenefit CardBenefit @relation(fields: [cardBenefitId], references: [id])
+}
+
+// ─── Card Instances (per-person) ─────────────────────────────
+
+model CardInstance {
+  id                String   @id @default(cuid())
+  cardProductId     String
+  householdMemberId String
+  activationDate    DateTime?
+  renewalDate       DateTime?
+  nickname          String?
+  createdAt         DateTime @default(now())
+
+  cardProduct  CardProduct         @relation(fields: [cardProductId], references: [id])
+  member       HouseholdMember     @relation(fields: [householdMemberId], references: [id])
+  accounts     Account[]
+  configs      CardInstanceConfig[]
+  creditUsages CreditUsage[]
+}
+
+model CardInstanceConfig {
+  id             String @id @default(cuid())
+  cardInstanceId String
+  configKey      String // e.g., "selected_airline"
+  configValue    String // e.g., "united"
+
+  cardInstance CardInstance @relation(fields: [cardInstanceId], references: [id])
+
+  @@unique([cardInstanceId, configKey])
+}
+
+// ─── Credit Usage Tracking ───────────────────────────────────
+
+model CreditUsage {
+  id              String    @id @default(cuid())
+  cardBenefitId   String
+  cardInstanceId  String
+  periodStart     DateTime
+  periodEnd       DateTime
+  amount          Float     // how much of the credit was used
+  status          String    @default("pending-confirmation") // "pending-confirmation" | "confirmed" | "dismissed" | "auto-confirmed"
+  detectionMethod String    @default("auto") // "auto" | "manual"
+  transactionId   String?
+  confirmedAt     DateTime?
+  notes           String?
+  createdAt       DateTime  @default(now())
+
+  cardBenefit  CardBenefit  @relation(fields: [cardBenefitId], references: [id])
+  cardInstance CardInstance @relation(fields: [cardInstanceId], references: [id])
+  transaction  Transaction? @relation(fields: [transactionId], references: [id])
+}
+
+// ─── Pre-aggregated Data ─────────────────────────────────────
+
+model SpendingSummary {
+  id                String  @id @default(cuid())
+  householdMemberId String? // null = household-wide
+  category          String
+  subcategory       String?
+  year              Int
+  month             Int
+  totalAmount       Float
+  transactionCount  Int
+
+  member HouseholdMember? @relation(fields: [householdMemberId], references: [id])
+
+  @@unique([householdMemberId, category, subcategory, year, month])
+}
