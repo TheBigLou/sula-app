@@ -13,16 +13,29 @@ interface PlaidLinkProps {
 export function PlaidLinkButton({ memberId, memberName, onSuccess }: PlaidLinkProps) {
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchLinkToken = useCallback(async () => {
     setLoading(true);
-    const response = await fetch("/api/plaid/create-link-token", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ memberId }),
-    });
-    const data = await response.json();
-    setLinkToken(data.linkToken);
+    setError(null);
+    try {
+      const response = await fetch("/api/plaid/create-link-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || "Failed to create link token");
+        console.error("Plaid link token error:", data);
+        setLoading(false);
+        return;
+      }
+      setLinkToken(data.linkToken);
+    } catch (err) {
+      setError("Network error connecting to Plaid");
+      console.error(err);
+    }
     setLoading(false);
   }, [memberId]);
 
@@ -46,9 +59,12 @@ export function PlaidLinkButton({ memberId, memberName, onSuccess }: PlaidLinkPr
   // Two-step: first fetch token, then open Link
   if (!linkToken) {
     return (
-      <Button onClick={fetchLinkToken} disabled={loading}>
-        {loading ? "Preparing..." : `Connect Account for ${memberName}`}
-      </Button>
+      <div className="flex items-center gap-3">
+        <Button onClick={fetchLinkToken} disabled={loading}>
+          {loading ? "Preparing..." : `Connect Account for ${memberName}`}
+        </Button>
+        {error && <span className="text-sm text-destructive">{error}</span>}
+      </div>
     );
   }
 

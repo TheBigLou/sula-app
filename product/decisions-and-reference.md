@@ -10,7 +10,7 @@ Living document tracking scope decisions, additions, descopes, deferred items, a
 ## Project Context
 
 | Property | Value |
-|---|---|
+| --- | --- |
 | **App Name** | Sula |
 | **Repository** | github.com/TheBigLou/sula-app |
 | **Builder** | PM with Node/React/JS experience, using Claude Code |
@@ -27,7 +27,7 @@ Living document tracking scope decisions, additions, descopes, deferred items, a
 ### Core Framework & Runtime
 
 | Decision | Choice | Rationale |
-|---|---|---|
+| --- | --- | --- |
 | **Web Framework** | Next.js 15 (App Router, TypeScript) | Single unified full-stack project; strong Claude Code fluency; TypeScript essential for financial data integrity |
 | **Node Version** | v22.22.0 LTS | Upgraded from v23.7.0 for Prisma 7 compatibility |
 | **Language** | TypeScript | Non-negotiable for financial data handling and type safety |
@@ -35,7 +35,7 @@ Living document tracking scope decisions, additions, descopes, deferred items, a
 ### Data & Persistence
 
 | Decision | Choice | Rationale |
-|---|---|---|
+| --- | --- | --- |
 | **Database** | SQLite via Prisma ORM | Local-only deployment eliminates server process overhead; financial data stays on-machine; Prisma enables seamless migration to Postgres if scaling beyond household |
 | **Prisma Adapter** | `@prisma/adapter-better-sqlite3` | Required for Prisma 7's client engine with SQLite |
 | **ORM Pattern** | Prisma singleton in `src/lib/db.ts` | Prevents multiple connection instances in dev environment |
@@ -43,14 +43,14 @@ Living document tracking scope decisions, additions, descopes, deferred items, a
 ### UI & Styling
 
 | Decision | Choice | Rationale |
-|---|---|---|
+| --- | --- | --- |
 | **CSS Framework** | Tailwind CSS | Fast iteration, consistent design, excellent Claude Code support |
 | **Component Library** | shadcn/ui | Pre-built accessible components; Claude Code integrates well; matches Tailwind workflow |
 
 ### Security & Encryption
 
 | Decision | Choice | Rationale |
-|---|---|---|
+| --- | --- | --- |
 | **Token Encryption** | AES-256-GCM via Node.js crypto module | Industry-standard for Plaid access token protection at rest; symmetric key from env var (ENCRYPTION_KEY) |
 | **Environment Variables** | `.env` (excluded from git) | Sensitive credentials: ENCRYPTION_KEY, Plaid credentials, Anthropic API key |
 
@@ -75,7 +75,7 @@ Living document tracking scope decisions, additions, descopes, deferred items, a
 ### What We're NOT Using (and Why)
 
 | Non-Choice | Reason |
-|---|---|
+| --- | --- |
 | **Docker** | Unnecessary for local-only deployment; adds complexity without benefit |
 | **Redis / Caching Layer** | SQLite performance sufficient for household data volume |
 | **Authentication Library** (Auth0, NextAuth, etc.) | Single household, local-only for v0; no multi-user auth needed yet |
@@ -98,34 +98,34 @@ Living document tracking scope decisions, additions, descopes, deferred items, a
 ### Schema Refinements (Added During Phase 0 QA)
 
 1. **CreditUsage ↔ Transaction: Many-to-Many**
-   - Join table: `CreditUsageTransaction`
-   - **Reason:** CSR travel credit ($300) is cumulative across many transactions; digital entertainment credit may match multiple streaming charges per month
-   - **Example:** Single $15 Apple TV+ charge matches digital entertainment benefit; cumulative travel spend matches CSR $300 credit
+  - Join table: `CreditUsageTransaction`
+  - **Reason:** CSR travel credit ($300) is cumulative across many transactions; digital entertainment credit may match multiple streaming charges per month
+  - **Example:** Single $15 Apple TV+ charge matches digital entertainment benefit; cumulative travel spend matches CSR $300 credit
 
 2. **Transaction Splitting**
-   - Model: `TransactionSplit`
-   - **Use Case:** One receipt allocated to multiple categories (e.g., $200 Costco = $150 groceries + $50 household items)
-   - **Implementation:** Parent transaction gets `hasSplits` boolean flag; split transactions excluded from category totals
+  - Model: `TransactionSplit`
+  - **Use Case:** One receipt allocated to multiple categories (e.g., $200 Costco = $150 groceries + $50 household items)
+  - **Implementation:** Parent transaction gets `hasSplits` boolean flag; split transactions excluded from category totals
 
 3. **Transaction Grouping/Merging**
-   - Model: `TransactionGroup`
-   - **Use Case:** Multi-day hotel stay posting as 3 separate charges; logical grouping for spending analysis
-   - **Scope:** Grouping logic deferred; table structure prepared
+  - Model: `TransactionGroup`
+  - **Use Case:** Multi-day hotel stay posting as 3 separate charges; logical grouping for spending analysis
+  - **Scope:** Grouping logic deferred; table structure prepared
 
 4. **Original Value Preservation**
-   - `originalAmount` field on Transaction: preserves Plaid's original value when user edits
-   - `llmCategory` / `llmSubcategory` fields: store LLM's suggestions when user overrides
-   - **Reason:** Enables comparison of system suggestions vs. user corrections; useful for refining categorization
+  - `originalAmount` field on Transaction: preserves Plaid's original value when user edits
+  - `llmCategory` / `llmSubcategory` fields: store LLM's suggestions when user overrides
+  - **Reason:** Enables comparison of system suggestions vs. user corrections; useful for refining categorization
 
 5. **User Edit Tracking**
-   - `userEditedName` boolean on Transaction: marks when user manually changed transaction name
-   - `categorySource` field: tracks who set category ("plaid" | "llm" | "user")
-   - **Reason:** Transparency on data provenance; guides which data to trust for learning
+  - `userEditedName` boolean on Transaction: marks when user manually changed transaction name
+  - `categorySource` field: tracks who set category ("plaid" | "llm" | "user")
+  - **Reason:** Transparency on data provenance; guides which data to trust for learning
 
 6. **Audit Log**
-   - Model: `EditHistory`
-   - **Tracking:** entityType, entityId, field, oldValue, newValue, editedAt
-   - **Scope:** Lightweight change tracking across all entities; detailed audit trail for financial data
+  - Model: `EditHistory`
+  - **Tracking:** entityType, entityId, field, oldValue, newValue, editedAt
+  - **Scope:** Lightweight change tracking across all entities; detailed audit trail for financial data
 
 ### Scalability Assessment
 
@@ -155,7 +155,7 @@ Living document tracking scope decisions, additions, descopes, deferred items, a
 ### Card Portfolio
 
 | Card | Issuer | Qty | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Amex Platinum | American Express | 2 | Primary travel/entertainment |
 | CSR | Chase Sapphire Reserve | 1 | Primary travel & dining |
 | CSP | Chase Sapphire Preferred | 1 | Ongoing earn |
@@ -189,6 +189,7 @@ Living document tracking scope decisions, additions, descopes, deferred items, a
 
 ### Deferred Refactors
 
+- [ ] **Robust error handling and failure states across all UI flows** — Plaid connection, transaction sync, categorization, etc. should show clear error messages, retry options, and loading/failure states to the user rather than silently failing. Identified during Phase 1 QA.
 - [ ] **Normalize JSON-as-string fields** to join tables if scaling beyond household use
 - [ ] **Add database indexes** on Transaction (date, accountId, householdMemberId, category) when transaction volume warrants
 - [ ] **Refactor HouseholdMember** into User + HouseholdMembership when adding multi-user auth
@@ -232,7 +233,7 @@ These benefits are included in seed data but require confirmation against curren
 ## Phase Completion Log
 
 | Phase | Name | Status | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **0** | Project Scaffolding | ✓ Complete | Next.js 15, Prisma/SQLite, full schema, seed data, encryption utils, CLAUDE.md |
 | **1** | Plaid Integration | ⏳ Ready | Connect accounts; requires Plaid API setup |
 | **2** | Transaction Sync | ⏳ Queued | Sync Plaid → SQLite |
@@ -248,7 +249,7 @@ These benefits are included in seed data but require confirmation against curren
 
 ### Secrets Management
 
-- **ENCRYPTION_KEY:** 64-character hex string for AES-256-GCM (Plaid token encryption)
+- **ENCRYPTION\_KEY:** 64-character hex string for AES-256-GCM (Plaid token encryption)
 - **Plaid Credentials:** PLAID_CLIENT_ID, PLAID_SECRET, PLAID_ENV (sandbox for dev)
 - **Anthropic API Key:** ANTHROPIC_API_KEY (for Claude categorization)
 - **Storage:** `.env` file (never committed to git)
@@ -273,7 +274,7 @@ These benefits are included in seed data but require confirmation against curren
 ## Quick Reference: Key File Locations
 
 | File | Purpose |
-|---|---|
+| --- | --- |
 | `product/proposal.md` | Full product specification |
 | `product/cards-seed.md` | Card benefits & detection rules data |
 | `product/decisions-and-reference.md` | This document |

@@ -37,7 +37,7 @@ model PlaidItem {
   householdMemberId String
   /// encrypted at rest
   accessToken       String
-  itemId            String
+  itemId            String   @unique
   institutionId     String?
   institutionName   String?
   /// "active" | "needs_reauth" | "revoked"
@@ -55,7 +55,7 @@ model Account {
   id               String  @id @default(cuid())
   plaidItemId      String
   householdMemberId String
-  plaidAccountId   String
+  plaidAccountId   String  @unique
   name             String
   officialName     String?
   /// "checking" | "savings" | "credit" | "investment" | "other"
@@ -78,7 +78,7 @@ model Transaction {
   id                  String   @id @default(cuid())
   accountId           String
   householdMemberId   String
-  plaidTransactionId  String
+  plaidTransactionId  String   @unique
   date                DateTime
   /// positive = money out (debit), negative = money in (credit)
   amount              Float

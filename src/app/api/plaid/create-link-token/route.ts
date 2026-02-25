@@ -8,6 +8,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "memberId is required" }, { status: 400 });
   }
 
-  const data = await createLinkToken(memberId);
-  return NextResponse.json({ linkToken: data.link_token });
+  try {
+    const data = await createLinkToken(memberId);
+    return NextResponse.json({ linkToken: data.link_token });
+  } catch (error: unknown) {
+    const plaidError = error as { response?: { data?: unknown }; message?: string };
+    console.error("Plaid create-link-token error:", plaidError.response?.data || plaidError.message);
+    return NextResponse.json(
+      { error: "Failed to create link token", details: plaidError.response?.data || plaidError.message },
+      { status: 500 }
+    );
+  }
 }
