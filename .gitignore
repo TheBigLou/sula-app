@@ -39,7 +39,5 @@ next-env.d.ts
 # claude
 .claude/
 
-# research
-product/
-research/
+# generated
 /src/generated/prisma
