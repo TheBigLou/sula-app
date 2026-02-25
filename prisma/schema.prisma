@@ -1,7 +1,7 @@
 // @nimbalyst {"viewport":{"x":476.43142888090654,"y":160.91926970163954,"zoom":0.6023450763201056},"positions":{"Household":{"x":-500,"y":-340},"HouseholdMember":{"x":420,"y":-200},"PlaidItem":{"x":1640,"y":-20},"Account":{"x":1000,"y":-680},"Transaction":{"x":-620,"y":60},"CardProduct":{"x":360,"y":220},"CardBenefit":{"x":800,"y":400},"BenefitDetectionRule":{"x":1160,"y":220},"CardInstance":{"x":100,"y":1120},"CardInstanceConfig":{"x":450,"y":700},"CreditUsage":{"x":1180,"y":880},"SpendingSummary":{"x":-360,"y":820}},"entityViewMode":"standard"}
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
   output   = "../src/generated/prisma"
 }
 
@@ -65,6 +65,8 @@ model Account {
   mask             String?
   currentBalance   Float?
   availableBalance Float?
+  /// whether to sync transactions for this account
+  syncEnabled      Boolean @default(true)
   /// links credit card accounts to a CardInstance
   cardInstanceId   String?
 

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { PlaidLinkButton } from "@/components/PlaidLink";
 
 interface Account {
@@ -14,6 +15,7 @@ interface Account {
   mask: string | null;
   currentBalance: number | null;
   availableBalance: number | null;
+  syncEnabled: boolean;
   plaidItem: {
     institutionName: string | null;
   };
@@ -48,6 +50,7 @@ function accountTypeBadge(type: string) {
 export default function AccountsPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+  const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -61,6 +64,32 @@ export default function AccountsPage() {
     fetchData();
   }, [fetchData]);
 
+  const toggleSync = useCallback(async (accountId: string, currentValue: boolean) => {
+    setTogglingIds((prev) => new Set(prev).add(accountId));
+
+    // Optimistic update
+    setMembers((prev) =>
+      prev.map((m) => ({
+        ...m,
+        accounts: m.accounts.map((a) =>
+          a.id === accountId ? { ...a, syncEnabled: !currentValue } : a
+        ),
+      }))
+    );
+
+    await fetch("/api/accounts/toggle-sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accountId, syncEnabled: !currentValue }),
+    });
+
+    setTogglingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(accountId);
+      return next;
+    });
+  }, []);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -69,6 +98,10 @@ export default function AccountsPage() {
     );
   }
 
+  const syncedCount = members.reduce(
+    (sum, m) => sum + m.accounts.filter((a) => a.syncEnabled).length,
+    0
+  );
   const totalAccounts = members.reduce((sum, m) => sum + m.accounts.length, 0);
 
   return (
@@ -76,8 +109,7 @@ export default function AccountsPage() {
       <div>
         <h1 className="text-3xl font-bold">Connected Accounts</h1>
         <p className="text-muted-foreground mt-1">
-          {totalAccounts} account{totalAccounts !== 1 ? "s" : ""} connected across{" "}
-          {members.length} member{members.length !== 1 ? "s" : ""}
+          {syncedCount} of {totalAccounts} account{totalAccounts !== 1 ? "s" : ""} enabled for sync
         </p>
       </div>
 
@@ -104,7 +136,10 @@ export default function AccountsPage() {
           ) : (
             <div className="grid gap-3">
               {member.accounts.map((account) => (
-                <Card key={account.id}>
+                <Card
+                  key={account.id}
+                  className={account.syncEnabled ? "" : "opacity-60"}
+                >
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       <div>
@@ -123,28 +158,40 @@ export default function AccountsPage() {
                           </CardDescription>
                         )}
                       </div>
-                      <Badge className={accountTypeBadge(account.type)}>
-                        {account.subtype || account.type}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge className={accountTypeBadge(account.type)}>
+                          {account.subtype || account.type}
+                        </Badge>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex gap-6 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">Balance: </span>
-                        <span className="font-medium">
-                          {formatCurrency(account.currentBalance)}
-                        </span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex gap-6 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Balance: </span>
+                          <span className="font-medium">
+                            {formatCurrency(account.currentBalance)}
+                          </span>
+                        </div>
+                        {account.availableBalance !== null &&
+                          account.availableBalance !== account.currentBalance && (
+                            <div>
+                              <span className="text-muted-foreground">Available: </span>
+                              <span className="font-medium">
+                                {formatCurrency(account.availableBalance)}
+                              </span>
+                            </div>
+                          )}
                       </div>
-                      {account.availableBalance !== null &&
-                        account.availableBalance !== account.currentBalance && (
-                          <div>
-                            <span className="text-muted-foreground">Available: </span>
-                            <span className="font-medium">
-                              {formatCurrency(account.availableBalance)}
-                            </span>
-                          </div>
-                        )}
+                      <Button
+                        variant={account.syncEnabled ? "outline" : "secondary"}
+                        size="sm"
+                        disabled={togglingIds.has(account.id)}
+                        onClick={() => toggleSync(account.id, account.syncEnabled)}
+                      >
+                        {account.syncEnabled ? "Syncing" : "Disabled"}
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
